@@ -5,10 +5,10 @@ import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
-import { getDatabase } from '../src/database/connection';
-import { errorHandler, notFoundHandler } from '../src/middleware/errorHandler';
-import taskRoutes from '../src/routes/tasks';
-import syncRoutes from '../src/routes/sync';
+import { getDatabase } from './database/connection';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import taskRoutes from './routes/tasks';
+import syncRoutes from './routes/sync';
 
 dotenv.config();
 
