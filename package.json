@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Professional Task Management API with offline-first architecture and sync capabilities",
   "private": true,
-  "main": "dist/server.js",
+  "main": "./dist/server.js",
   "author": "Your Name <your.email@example.com>",
   "license": "MIT",
   "keywords": [
