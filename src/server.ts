@@ -13,11 +13,26 @@ import syncRoutes from './routes/sync';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Security middleware
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://your-frontend.com']
+    : true,
+  credentials: true
+}));
 
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
@@ -39,12 +54,27 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
 // Load Swagger specification
-const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
+const swaggerPath = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, 'swagger.yaml')
+  : path.join(__dirname, '../swagger.yaml');
+
+let swaggerDocument;
+try {
+  swaggerDocument = YAML.load(swaggerPath);
+} catch (error) {
+  console.error('Error loading Swagger document:', error);
+  swaggerDocument = { 
+    openapi: '3.0.3',
+    info: { title: 'Task Management API', version: '1.0.0' },
+    paths: {}
+  };
+}
 
 // Swagger UI setup with minimal, professional styling
 const swaggerOptions = {
@@ -146,8 +176,8 @@ async function startServer() {
     await db.initialize();
     console.log('Database initialized successfully');
 
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`📝 Tasks API: http://localhost:${PORT}/api/tasks`);
       console.log(`🔄 Sync API: http://localhost:${PORT}/api/sync`);

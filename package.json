@@ -1,11 +1,17 @@
-  {
+{
   "name": "task-management-backend",
   "version": "1.0.0",
   "private": true,
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "tsc",
+    "build": "tsc && npx copyfiles swagger.yaml dist/ && npx copyfiles -u 1 \"public/**/*\" dist/",
     "start": "node dist/server.js",
+    "render-build": "npm ci && npm run build && npx mkdirp dist/data",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "echo 'Linting completed'",
@@ -30,6 +36,8 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^9.0.7",
     "@types/yamljs": "^0.2.34",
+    "copyfiles": "^2.4.1",
+    "mkdirp": "^3.0.1",
     "nodemon": "^3.1.10",
     "supertest": "^6.3.3",
     "ts-node": "^10.9.2",
