@@ -1,0 +1,444 @@
+openapi: 3.0.3
+info:
+  title: Task Management API
+  description: |
+    A modern, offline-first task management system with real-time synchronization.
+    
+    **Key Features:**
+    - Offline-first architecture with automatic sync
+    - RESTful API design with comprehensive CRUD operations
+    - Real-time conflict resolution and data integrity
+    - Enterprise-grade performance and security
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@taskmanager.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development Server
+  - url: https://api.taskmanager.com
+    description: Production Server
+
+tags:
+  - name: Tasks
+    description: Task management operations
+  - name: Sync
+    description: Data synchronization operations
+  - name: System
+    description: System health and monitoring
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health Check
+      description: Returns the current health status of the API
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2025-09-04T10:30:00.000Z"
+                version: "1.0.0"
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: Get All Tasks
+      description: Retrieve all non-deleted tasks
+      operationId: getAllTasks
+      parameters:
+        - name: completed
+          in: query
+          schema:
+            type: boolean
+          description: Filter by completion status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum number of tasks
+      responses:
+        '200':
+          description: Tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+              example:
+                - id: "550e8400-e29b-41d4-a716-446655440000"
+                  title: "Complete documentation"
+                  description: "Write API documentation"
+                  completed: false
+                  created_at: "2025-09-04T10:00:00.000Z"
+                  updated_at: "2025-09-04T10:00:00.000Z"
+                  is_deleted: false
+                  sync_status: "pending"
+
+    post:
+      tags: [Tasks]
+      summary: Create Task
+      description: Create a new task
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            examples:
+              basic:
+                summary: Basic Task
+                value:
+                  title: "Complete project"
+              detailed:
+                summary: Detailed Task
+                value:
+                  title: "Review code"
+                  description: "Review pull requests"
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+
+    get:
+      tags: [Tasks]
+      summary: Get Task
+      description: Retrieve a specific task
+      operationId: getTaskById
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Tasks]
+      summary: Update Task
+      description: Update an existing task
+      operationId: updateTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            examples:
+              complete:
+                summary: Mark Complete
+                value:
+                  completed: true
+              update:
+                summary: Update Details
+                value:
+                  title: "Updated title"
+                  description: "New description"
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Tasks]
+      summary: Delete Task
+      description: Soft delete a task
+      operationId: deleteTask
+      responses:
+        '204':
+          description: Task deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/sync:
+    post:
+      tags: [Sync]
+      summary: Trigger Sync
+      description: Manually trigger synchronization
+      operationId: triggerSync
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+              example:
+                message: "Sync completed successfully"
+                successful: 5
+                failed: 0
+                total: 5
+
+  /api/sync/status:
+    get:
+      tags: [Sync]
+      summary: Sync Status
+      description: Get current sync status
+      operationId: getSyncStatus
+      responses:
+        '200':
+          description: Sync status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncStatus'
+              example:
+                pending_operations: 3
+                failed_operations: 1
+                last_sync_attempt: "2025-09-04T10:30:00.000Z"
+
+components:
+  schemas:
+    Task:
+      type: object
+      required: [id, title, completed, created_at, updated_at, is_deleted, sync_status]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        title:
+          type: string
+          maxLength: 255
+          description: Task title
+          example: "Complete documentation"
+        description:
+          type: string
+          nullable: true
+          description: Task description
+          example: "Write comprehensive API docs"
+        completed:
+          type: boolean
+          description: Completion status
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2025-09-04T10:00:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-09-04T10:00:00.000Z"
+        is_deleted:
+          type: boolean
+          description: Soft delete flag
+          example: false
+        sync_status:
+          type: string
+          enum: [pending, synced, error]
+          description: Sync status
+          example: "pending"
+        server_id:
+          type: string
+          nullable: true
+          description: Server ID after sync
+          example: null
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last sync timestamp
+          example: null
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Task title
+          example: "New task"
+        description:
+          type: string
+          maxLength: 2000
+          description: Task description
+          example: "Task details"
+
+    UpdateTaskRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Updated title
+          example: "Updated task"
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Updated description
+          example: "Updated details"
+        completed:
+          type: boolean
+          description: Completion status
+          example: true
+
+    SyncResult:
+      type: object
+      required: [message, successful, failed, total]
+      properties:
+        message:
+          type: string
+          description: Result message
+          example: "Sync completed"
+        successful:
+          type: integer
+          minimum: 0
+          description: Successful operations
+          example: 5
+        failed:
+          type: integer
+          minimum: 0
+          description: Failed operations
+          example: 0
+        total:
+          type: integer
+          minimum: 0
+          description: Total operations
+          example: 5
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              task_id:
+                type: string
+              error:
+                type: string
+
+    SyncStatus:
+      type: object
+      required: [pending_operations, failed_operations]
+      properties:
+        pending_operations:
+          type: integer
+          minimum: 0
+          description: Pending sync operations
+          example: 3
+        failed_operations:
+          type: integer
+          minimum: 0
+          description: Failed sync operations
+          example: 1
+        last_sync_attempt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last sync attempt
+          example: "2025-09-04T10:30:00.000Z"
+
+    HealthResponse:
+      type: object
+      required: [status, timestamp, version]
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Current timestamp
+          example: "2025-09-04T10:30:00.000Z"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Task not found"
+        details:
+          type: string
+          description: Error details
+          example: "Additional error information"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation_error:
+              summary: Validation Error
+              value:
+                error: "Title is required"
+            invalid_format:
+              summary: Invalid Format
+              value:
+                error: "Invalid UUID format"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Task not found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal server error"

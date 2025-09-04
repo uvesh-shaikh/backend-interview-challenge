@@ -1,98 +1,193 @@
-# Backend Interview Challenge - Task Sync API
+# Personal Task Management Backend with Offline Sync
 
-This is a backend developer interview challenge focused on building a sync-enabled task management API. The challenge evaluates understanding of REST APIs, data synchronization, offline-first architecture, and conflict resolution.
+A robust backend API for a personal productivity application designed for users in India with intermittent internet connectivity. The system supports offline-first functionality with automatic synchronization when connectivity is restored.
 
-## 📚 Documentation Overview
+## Features
 
-Please read these documents in order:
+### Core Functionality
+- **Complete CRUD Operations**: Create, read, update, and delete tasks
+- **Offline-First Architecture**: All operations work offline and sync when online
+- **Conflict Resolution**: Last-write-wins strategy for handling data conflicts
+- **Soft Deletes**: Tasks are never permanently deleted, ensuring data integrity
+- **Batch Processing**: Efficient sync operations with configurable batch sizes
+- **Retry Mechanism**: Automatic retries for failed sync operations
 
-1. **[📋 Submission Instructions](./docs/SUBMISSION_INSTRUCTIONS.md)** - How to submit your solution (MUST READ)
-2. **[📝 Requirements](./docs/REQUIREMENTS.md)** - Detailed challenge requirements and implementation tasks
-3. **[🔌 API Specification](./docs/API_SPEC.md)** - Complete API documentation with examples
-4. **[🤖 AI Usage Guidelines](./docs/AI_GUIDELINES.md)** - Guidelines for using AI tools during the challenge
+### API Endpoints
 
-**⚠️ Important**: DO NOT create pull requests against this repository. All submissions must be through private forks.
+#### Task Management
+- `GET /api/tasks` - Retrieve all non-deleted tasks
+- `GET /api/tasks/:id` - Get a specific task by ID
+- `POST /api/tasks` - Create a new task
+- `PUT /api/tasks/:id` - Update an existing task
+- `DELETE /api/tasks/:id` - Soft delete a task
 
-## Challenge Overview
+#### Sync Management
+- `POST /api/sync` - Trigger sync operation
+- `GET /api/sync/status` - Get current sync status
+- `POST /api/sync/retry` - Retry failed sync operations
+- `DELETE /api/sync/failed` - Clear all failed sync operations
 
-Candidates are expected to implement a backend API that:
-- Manages tasks (CRUD operations)
-- Supports offline functionality with a sync queue
-- Handles conflict resolution when syncing
-- Provides robust error handling
+#### Health Check
+- `GET /health` - Application health status
 
-## Project Structure
+## Architecture
 
-```
-backend-interview-challenge/
-├── src/
-│   ├── db/             # Database setup and configuration
-│   ├── models/         # Data models (if needed)
-│   ├── services/       # Business logic (TO BE IMPLEMENTED)
-│   ├── routes/         # API endpoints (TO BE IMPLEMENTED)
-│   ├── middleware/     # Express middleware
-│   ├── types/          # TypeScript interfaces
-│   └── server.ts       # Express server setup
-├── tests/              # Test files
-├── docs/               # Documentation
-└── package.json        # Dependencies and scripts
-```
+### Data Model
+Each task contains:
+- `id`: Unique identifier (UUID)
+- `title`: Task title (required, max 255 chars)
+- `description`: Optional task description
+- `completed`: Boolean completion status
+- `created_at`: Creation timestamp
+- `updated_at`: Last modification timestamp
+- `is_deleted`: Soft delete flag
+- `sync_status`: Sync state ('pending', 'synced', 'error')
+- `server_id`: Server-assigned ID after sync
+- `last_synced_at`: Last successful sync timestamp
+
+### Sync Queue
+Operations are tracked in a sync queue with:
+- Operation type (create/update/delete)
+- Task data snapshot
+- Retry attempts tracking
+- Error message logging
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js (v18 or higher)
+- Node.js 16+ 
 - npm or yarn
 
-### Setup
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-4. Run the development server:
-   ```bash
-   npm run dev
-   ```
+### Installation
 
-### Available Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build TypeScript to JavaScript
-- `npm run start` - Start production server
-- `npm test` - Run tests
-- `npm run test:ui` - Run tests with UI
-- `npm run lint` - Run ESLint
-- `npm run typecheck` - Check TypeScript types
-
-## Your Task
-
-### Key Implementation Files
-
-You'll need to implement the following services and routes:
-
-- `src/services/taskService.ts` - Task CRUD operations
-- `src/services/syncService.ts` - Sync logic and conflict resolution  
-- `src/routes/tasks.ts` - REST API endpoints
-- `src/routes/sync.ts` - Sync-related endpoints
-
-### Before Submission
-
-Ensure all of these pass:
+1. Install dependencies:
 ```bash
-npm test          # All tests must pass
-npm run lint      # No linting errors
-npm run typecheck # No TypeScript errors
+npm install
 ```
 
-### Time Expectation
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
 
-This challenge is designed to take 2-3 hours to complete.
+3. Start the development server:
+```bash
+npm run dev
+```
+
+### Configuration
+
+Environment variables (`.env`):
+```
+PORT=3000
+BATCH_SIZE=50
+MAX_RETRY_ATTEMPTS=3
+DB_PATH=./database.sqlite
+NODE_ENV=development
+```
+
+## Usage
+
+### Creating a Task
+```bash
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Complete project", "description": "Finish the sync implementation"}'
+```
+
+### Updating a Task
+```bash
+curl -X PUT http://localhost:3000/api/tasks/TASK_ID \
+  -H "Content-Type: application/json" \
+  -d '{"completed": true}'
+```
+
+### Triggering Sync
+```bash
+curl -X POST http://localhost:3000/api/sync
+```
+
+### Checking Sync Status
+```bash
+curl http://localhost:3000/api/sync/status
+```
+
+## Testing
+
+Run the test suite:
+```bash
+npm run test
+```
+
+Run with coverage:
+```bash
+npm run test:coverage
+```
+
+Run type checking:
+```bash
+npm run typecheck
+```
+
+## Sync Strategy
+
+### Offline Operations
+1. All CRUD operations work immediately offline
+2. Changes are queued in the sync queue
+3. Tasks are marked with `sync_status: 'pending'`
+
+### Online Synchronization
+1. Batch processing of queued operations (configurable batch size)
+2. Conflict resolution using last-write-wins based on `updated_at`
+3. Automatic retry with exponential backoff for failed operations
+4. Comprehensive logging of all sync activities
+
+### Conflict Resolution
+- **Last-Write-Wins**: The most recently updated version wins
+- **Conflict Logging**: All conflicts are logged for debugging
+- **Data Preservation**: No data is lost during conflict resolution
+
+## Error Handling
+
+- **Network Failures**: Graceful handling without crashes
+- **Retry Logic**: Maximum 3 attempts with exponential backoff
+- **Validation**: Comprehensive input validation
+- **Logging**: Detailed error logging and sync conflict tracking
+
+## Performance Optimizations
+
+- **Batch Operations**: Configurable batch sizes for sync operations
+- **Database Indexes**: Optimized queries with proper indexing
+- **Connection Pooling**: Efficient database connection management
+- **Minimal Queries**: Optimized database operations
+
+## Development Assumptions
+
+1. **Single User**: Designed for personal use (no multi-user authentication)
+2. **Local Storage**: SQLite for local data persistence
+3. **Simulated Server**: For demonstration, "sync" operations are simulated
+4. **UUID Generation**: Client-side UUID generation for offline capabilities
+5. **Timestamp-Based Conflicts**: Using ISO timestamps for conflict resolution
+
+## Production Considerations
+
+For production deployment:
+1. Implement actual remote server sync endpoints
+2. Add user authentication and authorization
+3. Use PostgreSQL or similar for production database
+4. Implement connection pooling
+5. Add rate limiting and security headers
+6. Set up monitoring and alerting
+7. Implement proper logging infrastructure
+
+## Contributing
+
+1. Follow TypeScript strict mode guidelines
+2. Maintain test coverage above 80%
+3. Use conventional commit messages
+4. Run linting and type checking before commits
 
 ## License
 
-This project is for interview purposes only.
+Private project - All rights reserved

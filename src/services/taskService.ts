@@ -1,56 +1,187 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Task } from '../types';
-import { Database } from '../db/database';
+import { getDatabase } from '../database/connection';
+import { Task, CreateTaskRequest, UpdateTaskRequest, SyncOperation } from '../types/task';
 
 export class TaskService {
-  constructor(private db: Database) {}
+  private db = getDatabase();
 
-  async createTask(taskData: Partial<Task>): Promise<Task> {
-    // TODO: Implement task creation
-    // 1. Generate UUID for the task
-    // 2. Set default values (completed: false, is_deleted: false)
-    // 3. Set sync_status to 'pending'
-    // 4. Insert into database
-    // 5. Add to sync queue
-    throw new Error('Not implemented');
+  async getAllTasks(): Promise<Task[]> {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE is_deleted = 0 
+      ORDER BY created_at DESC
+    `;
+    
+    return await this.db.all(query);
   }
 
-  async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-    // TODO: Implement task update
-    // 1. Check if task exists
-    // 2. Update task in database
-    // 3. Update updated_at timestamp
-    // 4. Set sync_status to 'pending'
-    // 5. Add to sync queue
-    throw new Error('Not implemented');
+  async getTaskById(id: string): Promise<Task | null> {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE id = ? AND is_deleted = 0
+    `;
+    
+    return await this.db.get(query, [id]);
+  }
+
+  async createTask(taskData: CreateTaskRequest): Promise<Task> {
+    const now = new Date().toISOString();
+    const task: Task = {
+      id: uuidv4(),
+      title: taskData.title,
+      description: taskData.description || undefined,
+      completed: false,
+      created_at: now,
+      updated_at: now,
+      is_deleted: false,
+      sync_status: 'pending',
+      server_id: undefined,
+      last_synced_at: undefined
+    };
+
+    const query = `
+      INSERT INTO tasks (
+        id, title, description, completed, created_at, updated_at,
+        is_deleted, sync_status, server_id, last_synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    await this.db.run(query, [
+      task.id, task.title, task.description, task.completed,
+      task.created_at, task.updated_at, task.is_deleted,
+      task.sync_status, task.server_id, task.last_synced_at
+    ]);
+
+    // Add to sync queue
+    await this.addToSyncQueue('create', task.id, task);
+
+    return task;
+  }
+
+  async updateTask(id: string, updates: UpdateTaskRequest): Promise<Task | null> {
+    const existingTask = await this.getTaskById(id);
+    if (!existingTask) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const updatedTask: Task = {
+      ...existingTask,
+      ...updates,
+      updated_at: now,
+      sync_status: 'pending'
+    };
+
+    const query = `
+      UPDATE tasks 
+      SET title = ?, description = ?, completed = ?, updated_at = ?, sync_status = ?
+      WHERE id = ? AND is_deleted = 0
+    `;
+
+    const result = await this.db.run(query, [
+      updatedTask.title,
+      updatedTask.description,
+      updatedTask.completed,
+      updatedTask.updated_at,
+      updatedTask.sync_status,
+      id
+    ]);
+
+    if (result.changes === 0) {
+      return null;
+    }
+
+    // Add to sync queue
+    await this.addToSyncQueue('update', id, updatedTask);
+
+    return updatedTask;
   }
 
   async deleteTask(id: string): Promise<boolean> {
-    // TODO: Implement soft delete
-    // 1. Check if task exists
-    // 2. Set is_deleted to true
-    // 3. Update updated_at timestamp
-    // 4. Set sync_status to 'pending'
-    // 5. Add to sync queue
-    throw new Error('Not implemented');
+    const existingTask = await this.getTaskById(id);
+    if (!existingTask) {
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    
+    const query = `
+      UPDATE tasks 
+      SET is_deleted = 1, updated_at = ?, sync_status = ?
+      WHERE id = ? AND is_deleted = 0
+    `;
+
+    const result = await this.db.run(query, [now, 'pending', id]);
+
+    if (result.changes === 0) {
+      return false;
+    }
+
+    const deletedTask = { ...existingTask, is_deleted: true, updated_at: now };
+    
+    // Add to sync queue
+    await this.addToSyncQueue('delete', id, deletedTask);
+
+    return true;
   }
 
-  async getTask(id: string): Promise<Task | null> {
-    // TODO: Implement get single task
-    // 1. Query database for task by id
-    // 2. Return null if not found or is_deleted is true
-    throw new Error('Not implemented');
+  private async addToSyncQueue(operation: 'create' | 'update' | 'delete', taskId: string, taskData: Task): Promise<void> {
+    const now = new Date().toISOString();
+    const queueEntry: SyncOperation = {
+      id: uuidv4(),
+      operation_type: operation,
+      task_id: taskId,
+      task_data: JSON.stringify(taskData),
+      retry_count: 0,
+      created_at: now
+    };
+
+    const query = `
+      INSERT INTO sync_queue (id, operation_type, task_id, task_data, retry_count, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+    await this.db.run(query, [
+      queueEntry.id,
+      queueEntry.operation_type,
+      queueEntry.task_id,
+      queueEntry.task_data,
+      queueEntry.retry_count,
+      queueEntry.created_at
+    ]);
   }
 
-  async getAllTasks(): Promise<Task[]> {
-    // TODO: Implement get all non-deleted tasks
-    // 1. Query database for all tasks where is_deleted = false
-    // 2. Return array of tasks
-    throw new Error('Not implemented');
+  async getPendingTasks(): Promise<Task[]> {
+    const query = `
+      SELECT * FROM tasks 
+      WHERE sync_status = 'pending' AND is_deleted = 0
+      ORDER BY updated_at ASC
+    `;
+    
+    return await this.db.all(query);
   }
 
-  async getTasksNeedingSync(): Promise<Task[]> {
-    // TODO: Get all tasks with sync_status = 'pending' or 'error'
-    throw new Error('Not implemented');
+  async updateSyncStatus(taskId: string, status: 'pending' | 'synced' | 'error', serverId?: string): Promise<void> {
+    const now = new Date().toISOString();
+    let query: string;
+    let params: any[];
+
+    if (status === 'synced' && serverId) {
+      query = `
+        UPDATE tasks 
+        SET sync_status = ?, server_id = ?, last_synced_at = ?
+        WHERE id = ?
+      `;
+      params = [status, serverId, now, taskId];
+    } else {
+      query = `
+        UPDATE tasks 
+        SET sync_status = ?
+        WHERE id = ?
+      `;
+      params = [status, taskId];
+    }
+
+    await this.db.run(query, params);
   }
 }
