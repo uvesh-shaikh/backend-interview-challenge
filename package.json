@@ -47,9 +47,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist",
     "prebuild": "npm run clean",
-    "postinstall": "npm run build",
-    "validate": "npm run typecheck && npm run lint && npm run test",
-    "prepare": "npm run build"
+    "validate": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -68,7 +66,7 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.8",
-    "multer": "^1.4.5"
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
