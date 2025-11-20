@@ -551,4 +551,4 @@ You can import the following endpoints into Postman for testing:
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed Using
